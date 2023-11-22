@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "proxyserver.h"
 
@@ -27,12 +28,20 @@
  * Their values are set up in main() using the
  * command line arguments (already implemented for you).
  */
+
+struct ListenerThreadInfo {
+    int server_fd;
+    int port;
+};
+
 int num_listener;
 int *listener_ports;
 int num_workers;
 char *fileserver_ipaddr;
 int fileserver_port;
 int max_queue_size;
+struct ListenerThreadInfo* ListenerThreadInfoList; 
+
 
 void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     http_start_response(client_fd, err_code);
@@ -111,25 +120,25 @@ int server_fd;
  * the fd number of the server socket in *socket_number. For each accepted
  * connection, calls request_handler with the accepted fd number.
  */
-void serve_forever(int *server_fd) {
-
-    // create a socket to listen
-    *server_fd = socket(PF_INET, SOCK_STREAM, 0);
-    if (*server_fd == -1) {
+void *serve_forever(void *listener_thread_info_ptr)
+{
+    struct ListenerThreadInfo *listener_thread_info = (struct ListenerThreadInfo *)listener_thread_info_ptr;
+    listener_thread_info->server_fd = socket(PF_INET, SOCK_STREAM, 0);
+    if (listener_thread_info->server_fd == -1) {
         perror("Failed to create a new socket");
         exit(errno);
     }
 
     // manipulate options for the socket
     int socket_option = 1;
-    if (setsockopt(*server_fd, SOL_SOCKET, SO_REUSEADDR, &socket_option,
+    if (setsockopt(listener_thread_info->server_fd, SOL_SOCKET, SO_REUSEADDR, &socket_option,
                    sizeof(socket_option)) == -1) {
         perror("Failed to set socket options");
         exit(errno);
     }
 
 
-    int proxy_port = listener_ports[0];
+    int proxy_port = listener_thread_info->port;
     // create the full address of this proxyserver
     struct sockaddr_in proxy_address;
     memset(&proxy_address, 0, sizeof(proxy_address));
@@ -138,14 +147,14 @@ void serve_forever(int *server_fd) {
     proxy_address.sin_port = htons(proxy_port); // listening port
 
     // bind the socket to the address and port number specified in
-    if (bind(*server_fd, (struct sockaddr *)&proxy_address,
+    if (bind(listener_thread_info->server_fd, (struct sockaddr *)&proxy_address,
              sizeof(proxy_address)) == -1) {
         perror("Failed to bind on socket");
         exit(errno);
     }
 
     // starts waiting for the client to request a connection
-    if (listen(*server_fd, 1024) == -1) {
+    if (listen(listener_thread_info->server_fd, 1024) == -1) {
         perror("Failed to listen on socket");
         exit(errno);
     }
@@ -156,7 +165,7 @@ void serve_forever(int *server_fd) {
     size_t client_address_length = sizeof(client_address);
     int client_fd;
     while (1) {
-        client_fd = accept(*server_fd,
+        client_fd = accept(listener_thread_info->server_fd,
                            (struct sockaddr *)&client_address,
                            (socklen_t *)&client_address_length);
         if (client_fd < 0) {
@@ -175,9 +184,76 @@ void serve_forever(int *server_fd) {
         close(client_fd);
     }
 
-    shutdown(*server_fd, SHUT_RDWR);
-    close(*server_fd);
+    shutdown(listener_thread_info->server_fd, SHUT_RDWR);
+    close(listener_thread_info->server_fd);
 }
+// void serve_forever(int *server_fd) {
+
+//     // create a socket to listen
+//     *server_fd = socket(PF_INET, SOCK_STREAM, 0);
+//     if (*server_fd == -1) {
+//         perror("Failed to create a new socket");
+//         exit(errno);
+//     }
+
+//     // manipulate options for the socket
+//     int socket_option = 1;
+//     if (setsockopt(*server_fd, SOL_SOCKET, SO_REUSEADDR, &socket_option,
+//                    sizeof(socket_option)) == -1) {
+//         perror("Failed to set socket options");
+//         exit(errno);
+//     }
+
+
+//     int proxy_port = listener_ports[0];
+//     // create the full address of this proxyserver
+//     struct sockaddr_in proxy_address;
+//     memset(&proxy_address, 0, sizeof(proxy_address));
+//     proxy_address.sin_family = AF_INET;
+//     proxy_address.sin_addr.s_addr = INADDR_ANY;
+//     proxy_address.sin_port = htons(proxy_port); // listening port
+
+//     // bind the socket to the address and port number specified in
+//     if (bind(*server_fd, (struct sockaddr *)&proxy_address,
+//              sizeof(proxy_address)) == -1) {
+//         perror("Failed to bind on socket");
+//         exit(errno);
+//     }
+
+//     // starts waiting for the client to request a connection
+//     if (listen(*server_fd, 1024) == -1) {
+//         perror("Failed to listen on socket");
+//         exit(errno);
+//     }
+
+//     printf("Listening on port %d...\n", proxy_port);
+
+//     struct sockaddr_in client_address;
+//     size_t client_address_length = sizeof(client_address);
+//     int client_fd;
+//     while (1) {
+//         client_fd = accept(*server_fd,
+//                            (struct sockaddr *)&client_address,
+//                            (socklen_t *)&client_address_length);
+//         if (client_fd < 0) {
+//             perror("Error accepting socket");
+//             continue;
+//         }
+
+//         printf("Accepted connection from %s on port %d\n",
+//                inet_ntoa(client_address.sin_addr),
+//                client_address.sin_port);
+
+//         serve_request(client_fd);
+
+//         // close the connection to the client
+//         shutdown(client_fd, SHUT_WR);
+//         close(client_fd);
+//     }
+
+//     shutdown(*server_fd, SHUT_RDWR);
+//     close(*server_fd);
+// }
 
 /*
  * Default settings for in the global configuration variables
@@ -236,8 +312,12 @@ int main(int argc, char **argv) {
             num_listener = atoi(argv[++i]);
             free(listener_ports);
             listener_ports = (int *)malloc(num_listener * sizeof(int));
+            free(ListenerThreadInfoList);
+            ListenerThreadInfoList = (struct ListenerThreadInfo *)malloc(num_listener * sizeof(struct ListenerThreadInfo));
             for (int j = 0; j < num_listener; j++) {
                 listener_ports[j] = atoi(argv[++i]);
+                ListenerThreadInfoList[j].server_fd = -1;
+                ListenerThreadInfoList[j].port = listener_ports[j];
             }
         } else if (strcmp("-w", argv[i]) == 0) {
             num_workers = atoi(argv[++i]);
@@ -254,7 +334,21 @@ int main(int argc, char **argv) {
     }
     print_settings();
 
-    serve_forever(&server_fd);
+    // serve_forever(&server_fd);
+    for (int i = 0; i < num_listener; ++i) {
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, serve_forever, &ListenerThreadInfoList[i]) != 0) {
+            perror("Error creating thread");
+            return EXIT_FAILURE;
+        }
+
+        pthread_detach(thread);
+    }
+
+    while (1) {
+        sleep(1); 
+    }
+
 
     return EXIT_SUCCESS;
 }
