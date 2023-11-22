@@ -11,6 +11,7 @@ typedef enum scode {
     QUEUE_EMPTY = 598   // priority queue is empty
 } status_code_t;
 
+extern int max_queue_size;
 #define GETJOBCMD "/GetJob"
 
 /*

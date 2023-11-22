@@ -32,7 +32,6 @@ int *listener_ports;
 int num_workers;
 char *fileserver_ipaddr;
 int fileserver_port;
-int max_queue_size;
 
 void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     http_start_response(client_fd, err_code);
@@ -75,7 +74,6 @@ void serve_request(int client_fd) {
 
     // successfully connected to the file server
     char *buffer = (char *)malloc(RESPONSE_BUFSIZE * sizeof(char));
-
     // forward the client request to the fileserver
     int bytes_read = read(client_fd, buffer, RESPONSE_BUFSIZE);
     int ret = http_send_data(fileserver_fd, buffer, bytes_read);

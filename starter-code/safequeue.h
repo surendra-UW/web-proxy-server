@@ -9,10 +9,10 @@ struct request{
 } request; 
 
 struct priority_queue{
-    request buffer[MAX_REQUESTS];
+    struct request buffer[MAX_REQUESTS];
     int size;
     pthread_mutex_t mutex;
-    pthread_cond_t full;
+    pthread_cond_t fill;
     pthread_cond_t empty;
 } priority_queue;
 
