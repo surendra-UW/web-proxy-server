@@ -174,7 +174,7 @@ char *http_get_response_message(int status_code) {
     }
 }
 
-void parse_client_request(int fd) {
+void parse_client_request(int fd,int *delay, int *priority) {
     char *read_buffer = malloc(LIBHTTP_REQUEST_MAX_SIZE + 1);
     if (!read_buffer) http_fatal_error("Malloc failed");
 
@@ -182,8 +182,8 @@ void parse_client_request(int fd) {
     read_buffer[bytes_read] = '\0'; /* Always null-terminate. */
     printf("read buffer %s\n\n", read_buffer);
 
-    int delay = -1;
-    int priority = -1;
+    // int delay = -1;
+    // int priority = -1;
     char *path = NULL;
 
     int is_first = 1;
@@ -208,14 +208,14 @@ void parse_client_request(int fd) {
                 s2 = strstr(s1 + 1, "/");
                 size = s2 - s1 - 1;
                 char *p = strndup(s1 + 1, size);
-                priority = atoi(p);
+                *priority = atoi(p);
             }
         } else {
             char *value = strstr(token, ":");
             if (value) {
                 size = value - token - 1;  // -1 for space
                 if (strncmp("Delay", token, size) == 0) {
-                    delay = atoi(value + 2);  // skip `: `
+                    *delay = atoi(value + 2);  // skip `: `
                 }
             }
         }
@@ -224,8 +224,9 @@ void parse_client_request(int fd) {
 
     printf("\n\tParsed HTTP request:\n");
     printf("\tPath: '%s'\n", path);
-    printf("\tPriority: '%d'\n", priority);
-    printf("\tDelay: '%d'\n\n", delay);
+    printf("\tPriority: '%d'\n", *priority);
+    printf("\tDelay: '%d'\n\n", *delay);
+
 
     free(read_buffer);
     return;
