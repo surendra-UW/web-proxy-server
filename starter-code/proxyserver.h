@@ -10,9 +10,9 @@ typedef enum scode {
     QUEUE_EMPTY = 598   // priority queue is empty
 } status_code_t;
 
-extern int max_queue_size;
 #define GETJOBCMD "/GetJob"
 
+#endif
 /*
  * A simple HTTP library.
  *
@@ -233,6 +233,3 @@ void parse_client_request(int fd,int *delay, int *priority) {
     return;
 }
 
-
-
-#endif

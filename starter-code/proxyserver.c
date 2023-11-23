@@ -39,12 +39,9 @@ int *listener_ports;
 int num_workers;
 char *fileserver_ipaddr;
 int fileserver_port;
-<<<<<<< HEAD
-=======
-int max_queue_size;
-struct ListenerThreadInfo* ListenerThreadInfoList; 
 
->>>>>>> origin/himanshu
+int max_queue_size;
+struct ListenerThreadInfo* ListenerThreadInfoList;
 
 void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     http_start_response(client_fd, err_code);
