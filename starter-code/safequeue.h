@@ -3,10 +3,12 @@
 #ifndef _SAFEQUEUE_H_
 #define _SAFEQUEUE_H_
 
+extern int max_queue_size;
 struct request{
     int fd;
     int priority;
-} request; 
+    int delay;
+}; 
 
 struct priority_queue{
     struct request buffer[MAX_REQUESTS];
@@ -14,9 +16,10 @@ struct priority_queue{
     pthread_mutex_t mutex;
     pthread_cond_t fill;
     pthread_cond_t empty;
-} priority_queue;
+};
 
 #endif
 
-int add_work(int priority, int fd);
-int get_work();
+int add_work(int fd, int priority, int delay);
+struct request get_work();
+void create_queue();

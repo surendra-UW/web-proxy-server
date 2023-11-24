@@ -70,7 +70,7 @@ void http_send_string(int fd, char *data) {
 }
 
 int http_send_data(int fd, char *data, size_t size) {
-    ssize_t bytes_sent;
+    size_t bytes_sent;
     while (size > 0) {
         bytes_sent = write(fd, data, size);
         if (bytes_sent < 0)

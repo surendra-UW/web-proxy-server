@@ -1,20 +1,25 @@
+#include <stdlib.h>
 #include <pthread.h>
+#include <stdio.h>
 #include "safequeue.h"
-#include "proxyserver.h"
+
+int insert(int fd, int p, int delay);
 
 struct priority_queue *request_queue = NULL;
 void create_queue() {
-    struct priority_queue *queue = (struct priority_queue *)malloc(sizeof(priority_queue));
-    pthread_mutex_init(&queue->mutex, 1);
+    printf("creating queue \n");
+    struct priority_queue *queue = (struct priority_queue *)malloc(sizeof(struct priority_queue));
+    pthread_mutex_init(&queue->mutex, NULL);
     pthread_cond_init(&queue->empty, NULL);
     pthread_cond_init(&queue->fill, NULL);
     queue->size = -1;
     request_queue = queue;
 }
 
-int add_work(int priority, int fd) {
+int add_work(int fd, int priority, int delay) {
     if(request_queue == NULL) return -1;
-    return insert(priority, fd);
+    printf("inserting queue priority %d delay %d fd %d\n", priority, delay, fd);
+    return insert(fd, priority, delay);
 }
  
 int parent(int i)
@@ -81,7 +86,7 @@ void shiftDown(int i)
  
 // Function to insert a new element
 // in the Binary Heap
-int insert(int p, int fd)
+int insert(int fd, int p, int delay)
 {
     pthread_mutex_lock(&request_queue->mutex);
     while (request_queue->size+1 == max_queue_size) {
@@ -90,24 +95,27 @@ int insert(int p, int fd)
         pthread_cond_wait(&request_queue->empty, &request_queue->mutex);
     }
     request_queue->size = request_queue->size + 1;
-    struct request r = request_queue->buffer[request_queue->size];
-    r.priority = p;
-    r.fd = fd;
+    request_queue->buffer[request_queue->size].fd = fd;
+    request_queue->buffer[request_queue->size].priority = p;
+    request_queue->buffer[request_queue->size].delay = delay;
+    printf("inserted into queue fd is %d\n", request_queue->buffer[request_queue->size].fd);
     // Shift Up to maintain heap property
     shiftUp(request_queue->size);
     pthread_cond_signal(&request_queue->fill);
     pthread_mutex_unlock(&request_queue->mutex);
+    return 0;
 }
  
 // Function to extract the element with
 // maximum priority
-struct request extractMax()
+struct request get_work()
 {
+    printf("extracting queue element %d\n", request_queue->size);
     pthread_mutex_lock(&request_queue->mutex);
     while(request_queue->size == -1)
         pthread_cond_wait(&request_queue->fill, &request_queue->mutex);
     struct request result = request_queue->buffer[0];
- 
+    printf("extracted queue element %d\n", result.fd);
     // Replace the value at the root
     // with the last leaf
     request_queue->buffer[0] = request_queue->buffer[request_queue->size];
