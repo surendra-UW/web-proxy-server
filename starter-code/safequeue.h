@@ -24,4 +24,4 @@ struct priority_queue{
 int add_work(int fd, int priority, int delay, char *data);
 struct request get_work();
 void create_queue();
-struct request *get_max();
+char *get_max();

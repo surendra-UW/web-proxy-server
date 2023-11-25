@@ -113,7 +113,7 @@ void* serve_request(void *arg) {
     close(client_fd);
     // Free resources and exit
     free(buffer);
-    sleep(10);
+    // sleep(10);
     }
     return NULL;
 }
@@ -198,14 +198,17 @@ void *serve_forever(void *listener_thread_info_ptr)
         int delay, priority;
         char *data = parse_client_request(client_fd, &delay, &priority);
         if(priority == -1) {
-            struct request *r = get_max();
+            char *r = get_max();
             if(r == NULL) {
                 http_start_response(client_fd, QUEUE_EMPTY);
             } else {
                 http_start_response(client_fd, BAD_REQUEST);
-                printf("sending data \n");
-                char *test = "jhgsdfjhgsdjhfgjhsdf ";
-                http_send_data(client_fd, test, strlen(test));
+                http_send_header(client_fd, "Content-type", "text/html");
+                 http_send_header(client_fd, "Server", "httpserver/1.0");
+                http_end_headers(client_fd);
+                // printf("sending data \n");
+                // char *test = "jhgsdfjhgsdjhfgjhsdf ";
+                http_send_string(client_fd, getPath(r));
             }
             close(client_fd);
         } else {

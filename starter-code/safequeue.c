@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <string.h>
 #include "safequeue.h"
 
 int insert(int fd, int p, int delay, char *data);
@@ -130,13 +131,13 @@ struct request get_work()
 }
  
  void copy_request (struct request dest, struct request src) {
-    dest.data = src.data;
+    strncpy(dest.data , src.data, strlen(src.data)+1);
     dest.delay = src.delay;
     dest.fd = src.fd;
     dest.priority = src.priority;
  }
 // maximum element
-struct request* get_max()
+char * get_max()
 {
     pthread_mutex_lock(&request_queue->mutex);
     if (request_queue->size == -1)
@@ -146,8 +147,9 @@ struct request* get_max()
     }
     
 
-    struct request *result = (struct request *)malloc(sizeof(struct request));
-    copy_request(*result, request_queue->buffer[0]);
+    char *data = (char *) malloc(strlen(request_queue->buffer[0].data));
+    // copy_request(*result, );
+    data = strndup(request_queue->buffer[0].data, strlen(request_queue->buffer[0].data)+1);
     // Replace the value at the root
     // with the last leaf
     request_queue->buffer[0] = request_queue->buffer[request_queue->size];
@@ -157,6 +159,6 @@ struct request* get_max()
     // to maintain the heap property
     shiftDown(0);
     pthread_mutex_unlock(&request_queue->mutex);
-    return result;
+    return data;
 }
  
