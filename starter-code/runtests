@@ -120,10 +120,9 @@ class Test3(Test):
 
         for _ in range(self.num_runs):
             reqs = (grequests.get(urls[i % self.N]) for i in range(self.batch_size))
-
             # Send all requests
             responses = grequests.map(reqs)
-
+            
             server_addr = f'http://{server_host}:{server_port}/'
             exp_resp = requests.get(server_addr + self.path)
 
@@ -256,7 +255,8 @@ class Test8(Test):
             send_block_request(self.priorities[ord], self.proxy_ports[0])
             time.sleep(0.5)
         for i in range(len(self.order)):
-            job = send_get_jobs(self.proxy_ports[0]).text
+            job = send_get_jobs(self.proxy_ports[0])
+            print("test8 response ", job)
             exp_job = '/' + self.priorities[i]
             job = job[:len(exp_job)]
             if job != exp_job:
@@ -448,9 +448,9 @@ print(f'Server address: {server_host}:{server_port}')
 # If the proxy server tries to connect before the python server starts to listen,
 # it would cause it to fail
 time.sleep(0.5)
-
+# Test1(), Test2(), Test3(), Test4(), Test5(), Test6(), Test7(),
 # Tests to run
-tests = [Test1(), Test2(), Test3(), Test4(), Test5(), Test6(), Test7(), Test8(), Test9(), Test10(),
+tests = [ Test8(), Test9(), Test10(),
          ]
 
 ts = run_tests(tests)

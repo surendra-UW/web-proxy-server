@@ -34,16 +34,6 @@ struct ListenerThreadInfo {
     int port;
 };
 
-struct WorkerThreadInfo {
-    int client_fd;
-    int delay;
-    int priority;
-};
-
-int client_fd;
-int delay;
-int priority;
-
 int num_listener;
 int *listener_ports;
 int num_workers;
@@ -51,7 +41,6 @@ char *fileserver_ipaddr;
 int fileserver_port;
 int max_queue_size;
 struct ListenerThreadInfo* ListenerThreadInfoList; 
-struct WorkerThreadInfo* WorkerThreadInfoList;
 
 void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     http_start_response(client_fd, err_code);
@@ -63,73 +52,9 @@ void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     return;
 }
 
-/*
- * forward the client request to the fileserver and
- * forward the fileserver response to the client
- */
-// void *serve_request(void *worker_thread_info_ptr) {
-
-//     struct WorkerThreadInfo *worker_thread_info = (struct WorkerThreadInfo *)worker_thread_info_ptr;
-
-//     // create a fileserver socket
-//     int fileserver_fd = socket(PF_INET, SOCK_STREAM, 0);
-//     if (fileserver_fd == -1) {
-//         fprintf(stderr, "Failed to create a new socket: error %d: %s\n", errno, strerror(errno));
-//         exit(errno);
-//     }
-
-//     // create the full fileserver address
-//     struct sockaddr_in fileserver_address;
-//     fileserver_address.sin_addr.s_addr = inet_addr(fileserver_ipaddr);
-//     fileserver_address.sin_family = AF_INET;
-//     fileserver_address.sin_port = htons(fileserver_port);
-
-//     // connect to the fileserver
-//     int connection_status = connect(fileserver_fd, (struct sockaddr *)&fileserver_address,
-//                                     sizeof(fileserver_address));
-//     if (connection_status < 0) {
-//         // failed to connect to the fileserver
-//         printf("Failed to connect to the file server\n");
-//         send_error_response(worker_thread_info->client_fd, BAD_GATEWAY, "Bad Gateway");
-//         return NULL;
-//     }
-
-//     // successfully connected to the file server
-//     char *buffer = (char *)malloc(RESPONSE_BUFSIZE * sizeof(char));
-
-//     // forward the client request to the fileserver
-//     int bytes_read = read(worker_thread_info->client_fd, buffer, RESPONSE_BUFSIZE);
-//     int ret = http_send_data(fileserver_fd, buffer, bytes_read);
-//     if (ret < 0) {
-//         printf("Failed to send request to the file server\n");
-//         send_error_response(worker_thread_info->client_fd, BAD_GATEWAY, "Bad Gateway");
-
-//     } else {
-//         // forward the fileserver response to the client
-//         while (1) {
-//             int bytes_read = recv(fileserver_fd, buffer, RESPONSE_BUFSIZE - 1, 0);
-//             if (bytes_read <= 0) // fileserver_fd has been closed, break
-//                 break;
-//             ret = http_send_data(worker_thread_info->client_fd, buffer, bytes_read);
-//             if (ret < 0) { // write failed, client_fd has been closed
-//                 break;
-//             }
-//         }
-//     }
-
-//     // close the connection to the fileserver
-//     shutdown(fileserver_fd, SHUT_WR);
-//     close(fileserver_fd);
-
-//     // Free resources and exit
-//     free(buffer);
-//     return NULL;
-// }
-
 void* serve_request(void *arg) {
-
+    while(1) { 
     struct request r = get_work();
-    printf("got response with fd %d\n", r.fd);
     // create a fileserver socket
     if(r.delay > 0){
         sleep(r.delay);
@@ -150,6 +75,7 @@ void* serve_request(void *arg) {
     // connect to the fileserver
     int connection_status = connect(fileserver_fd, (struct sockaddr *)&fileserver_address,
                                     sizeof(fileserver_address));
+                                
     if (connection_status < 0) {
         // failed to connect to the fileserver
         printf("Failed to connect to the file server\n");
@@ -161,9 +87,8 @@ void* serve_request(void *arg) {
     char *buffer = (char *)malloc(RESPONSE_BUFSIZE * sizeof(char));
 
     // forward the client request to the fileserver
-    int bytes_read = read(client_fd, buffer, RESPONSE_BUFSIZE);
-    printf("fiel server respose %s\n", buffer);
-    int ret = http_send_data(fileserver_fd, buffer, bytes_read);
+    // int bytes_read = read(r.fd, buffer, RESPONSE_BUFSIZE);
+    int ret = http_send_data(fileserver_fd, r.data, strlen(r.data));
     if (ret < 0) {
         printf("Failed to send request to the file server\n");
         send_error_response(client_fd, BAD_GATEWAY, "Bad Gateway");
@@ -184,13 +109,27 @@ void* serve_request(void *arg) {
     // close the connection to the fileserver
     shutdown(fileserver_fd, SHUT_WR);
     close(fileserver_fd);
-
+    shutdown(client_fd, SHUT_WR);
+    close(client_fd);
     // Free resources and exit
     free(buffer);
-
+    sleep(10);
+    }
     return NULL;
 }
 
+char *getPath(char *data) {
+    char *token = strtok(data, "\r\n");
+    char *path = NULL;
+    if (token != NULL) {
+        int size = strlen(token);
+        char *s1 = strstr(token, " ");  //request method
+        char *s2 = strstr(s1 + 1, " "); //path
+        size = s2 - s1 - 1;
+        path = strndup(s1 + 1, size);
+    }
+    return path;
+}
 
 int server_fd;
 /*
@@ -243,7 +182,6 @@ void *serve_forever(void *listener_thread_info_ptr)
     size_t client_address_length = sizeof(client_address);
     int client_fd;
     while (1) {
-        printf("hello\n");
         client_fd = accept(listener_thread_info->server_fd,
                            (struct sockaddr *)&client_address,
                            (socklen_t *)&client_address_length);
@@ -256,87 +194,34 @@ void *serve_forever(void *listener_thread_info_ptr)
         printf("Accepted connection from %s on port %d\n",
                inet_ntoa(client_address.sin_addr),
                client_address.sin_port);
-
-        parse_client_request(client_fd, &delay, &priority);
         
-        add_work(client_fd, priority, delay);
-
-        sleep(10);
-        // close the connection to the client
-        // shutdown(client_fd, SHUT_WR);
-        // close(client_fd);
+        int delay, priority;
+        char *data = parse_client_request(client_fd, &delay, &priority);
+        if(priority == -1) {
+            struct request *r = get_max();
+            if(r == NULL) {
+                http_start_response(client_fd, QUEUE_EMPTY);
+            } else {
+                http_start_response(client_fd, BAD_REQUEST);
+                printf("sending data \n");
+                char *test = "jhgsdfjhgsdjhfgjhsdf ";
+                http_send_data(client_fd, test, strlen(test));
+            }
+            close(client_fd);
+        } else {
+        int ret = add_work(client_fd, priority, delay, data);
+        if(ret == 1) {
+            //queue is full
+            http_start_response(client_fd, QUEUE_FULL);
+            close(client_fd);
+        }
+        }
+        
     }
 
     shutdown(listener_thread_info->server_fd, SHUT_RDWR);
     close(listener_thread_info->server_fd);
 }
-// void serve_forever(int *server_fd) {
-
-//     // create a socket to listen
-//     *server_fd = socket(PF_INET, SOCK_STREAM, 0);
-//     if (*server_fd == -1) {
-//         perror("Failed to create a new socket");
-//         exit(errno);
-//     }
-
-//     // manipulate options for the socket
-//     int socket_option = 1;
-//     if (setsockopt(*server_fd, SOL_SOCKET, SO_REUSEADDR, &socket_option,
-//                    sizeof(socket_option)) == -1) {
-//         perror("Failed to set socket options");
-//         exit(errno);
-//     }
-
-
-//     int proxy_port = listener_ports[0];
-//     // create the full address of this proxyserver
-//     struct sockaddr_in proxy_address;
-//     memset(&proxy_address, 0, sizeof(proxy_address));
-//     proxy_address.sin_family = AF_INET;
-//     proxy_address.sin_addr.s_addr = INADDR_ANY;
-//     proxy_address.sin_port = htons(proxy_port); // listening port
-
-//     // bind the socket to the address and port number specified in
-//     if (bind(*server_fd, (struct sockaddr *)&proxy_address,
-//              sizeof(proxy_address)) == -1) {
-//         perror("Failed to bind on socket");
-//         exit(errno);
-//     }
-
-//     // starts waiting for the client to request a connection
-//     if (listen(*server_fd, 1024) == -1) {
-//         perror("Failed to listen on socket");
-//         exit(errno);
-//     }
-
-//     printf("Listening on port %d...\n", proxy_port);
-
-//     struct sockaddr_in client_address;
-//     size_t client_address_length = sizeof(client_address);
-//     int client_fd;
-//     while (1) {
-//         client_fd = accept(*server_fd,
-//                            (struct sockaddr *)&client_address,
-//                            (socklen_t *)&client_address_length);
-//         if (client_fd < 0) {
-//             perror("Error accepting socket");
-//             continue;
-//         }
-
-//         printf("Accepted connection from %s on port %d\n",
-//                inet_ntoa(client_address.sin_addr),
-//                client_address.sin_port);
-
-//         serve_request(client_fd);
-
-//         // close the connection to the client
-//         shutdown(client_fd, SHUT_WR);
-//         close(client_fd);
-//     }
-
-//     shutdown(*server_fd, SHUT_RDWR);
-//     close(*server_fd);
-// }
 
 /*
  * Default settings for in the global configuration variables
@@ -404,13 +289,6 @@ int main(int argc, char **argv) {
             }
         } else if (strcmp("-w", argv[i]) == 0) {
             num_workers = atoi(argv[++i]);
-            free(WorkerThreadInfoList);
-            WorkerThreadInfoList = (struct WorkerThreadInfo *)malloc(num_workers * sizeof(struct WorkerThreadInfo));
-            for (int j = 0; j < num_workers; j++) {
-                WorkerThreadInfoList[j].client_fd = -1;
-                WorkerThreadInfoList[j].delay = 0;
-                WorkerThreadInfoList[j].priority = 0;
-            }
         } else if (strcmp("-q", argv[i]) == 0) {
             max_queue_size = atoi(argv[++i]);
         } else if (strcmp("-i", argv[i]) == 0) {
@@ -440,7 +318,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < num_workers; ++i) 
     {
         pthread_t thread;
-        if (pthread_create(&thread, NULL, serve_request, &WorkerThreadInfoList[i]) != 0) {
+        if (pthread_create(&thread, NULL, serve_request, NULL) != 0) {
             perror("Error creating thread");
             return EXIT_FAILURE;
         }

@@ -8,6 +8,7 @@ struct request{
     int fd;
     int priority;
     int delay;
+    char *data;
 }; 
 
 struct priority_queue{
@@ -20,6 +21,7 @@ struct priority_queue{
 
 #endif
 
-int add_work(int fd, int priority, int delay);
+int add_work(int fd, int priority, int delay, char *data);
 struct request get_work();
 void create_queue();
+struct request *get_max();

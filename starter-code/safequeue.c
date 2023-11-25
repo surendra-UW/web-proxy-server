@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "safequeue.h"
 
-int insert(int fd, int p, int delay);
+int insert(int fd, int p, int delay, char *data);
 
 struct priority_queue *request_queue = NULL;
 void create_queue() {
@@ -16,10 +16,10 @@ void create_queue() {
     request_queue = queue;
 }
 
-int add_work(int fd, int priority, int delay) {
+int add_work(int fd, int priority, int delay, char *data) {
     if(request_queue == NULL) return -1;
-    printf("inserting queue priority %d delay %d fd %d\n", priority, delay, fd);
-    return insert(fd, priority, delay);
+    printf("inserting queue priority %d delay %d fd %d data is %s\n", priority, delay, fd, data);
+    return insert(fd, priority, delay, data);
 }
  
 int parent(int i)
@@ -86,18 +86,18 @@ void shiftDown(int i)
  
 // Function to insert a new element
 // in the Binary Heap
-int insert(int fd, int p, int delay)
+int insert(int fd, int p, int delay, char *data)
 {
     pthread_mutex_lock(&request_queue->mutex);
-    while (request_queue->size+1 == max_queue_size) {
-        // pthread_mutex_unlock(&request_queue->mutex);
-        // return -1;
-        pthread_cond_wait(&request_queue->empty, &request_queue->mutex);
+    if (request_queue->size+1 == max_queue_size) {
+        pthread_mutex_unlock(&request_queue->mutex);
+        return 1;
     }
     request_queue->size = request_queue->size + 1;
     request_queue->buffer[request_queue->size].fd = fd;
     request_queue->buffer[request_queue->size].priority = p;
     request_queue->buffer[request_queue->size].delay = delay;
+    request_queue->buffer[request_queue->size].data = data;
     printf("inserted into queue fd is %d\n", request_queue->buffer[request_queue->size].fd);
     // Shift Up to maintain heap property
     shiftUp(request_queue->size);
@@ -129,9 +129,34 @@ struct request get_work()
     return result;
 }
  
+ void copy_request (struct request dest, struct request src) {
+    dest.data = src.data;
+    dest.delay = src.delay;
+    dest.fd = src.fd;
+    dest.priority = src.priority;
+ }
 // maximum element
-struct request getMax()
+struct request* get_max()
 {
-    return request_queue->buffer[0];
+    pthread_mutex_lock(&request_queue->mutex);
+    if (request_queue->size == -1)
+    {
+        pthread_mutex_unlock(&request_queue->mutex);
+        return NULL;
+    }
+    
+
+    struct request *result = (struct request *)malloc(sizeof(struct request));
+    copy_request(*result, request_queue->buffer[0]);
+    // Replace the value at the root
+    // with the last leaf
+    request_queue->buffer[0] = request_queue->buffer[request_queue->size];
+    request_queue->size = request_queue->size - 1;
+ 
+    // Shift down the replaced element
+    // to maintain the heap property
+    shiftDown(0);
+    pthread_mutex_unlock(&request_queue->mutex);
+    return result;
 }
  

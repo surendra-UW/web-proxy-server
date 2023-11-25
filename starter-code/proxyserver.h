@@ -175,7 +175,7 @@ char *http_get_response_message(int status_code) {
     }
 }
 
-void parse_client_request(int fd,int *delay, int *priority) {
+char * parse_client_request(int fd,int *delay, int *priority) {
     char *read_buffer = malloc(LIBHTTP_REQUEST_MAX_SIZE + 1);
     if (!read_buffer) http_fatal_error("Malloc failed");
 
@@ -183,8 +183,9 @@ void parse_client_request(int fd,int *delay, int *priority) {
     read_buffer[bytes_read] = '\0'; /* Always null-terminate. */
     printf("read buffer %s\n\n", read_buffer);
 
-    // int delay = -1;
-    // int priority = -1;
+    char *bytes_store = malloc(bytes_read+1);
+    strncpy(bytes_store, read_buffer, bytes_read+1);
+
     char *path = NULL;
 
     int is_first = 1;
@@ -202,6 +203,7 @@ void parse_client_request(int fd,int *delay, int *priority) {
             path = strndup(s1 + 1, size);
 
             if (strcmp(GETJOBCMD, path) == 0) {
+                *priority = -1;
                 break;
             } else {
                 // get priority
@@ -230,6 +232,6 @@ void parse_client_request(int fd,int *delay, int *priority) {
 
 
     free(read_buffer);
-    return;
+    return bytes_store;
 }
 
