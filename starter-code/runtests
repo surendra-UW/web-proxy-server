@@ -448,9 +448,9 @@ print(f'Server address: {server_host}:{server_port}')
 # If the proxy server tries to connect before the python server starts to listen,
 # it would cause it to fail
 time.sleep(0.5)
-# Test1(), Test2(), Test3(), Test4(), Test5(), Test6(), Test7(),
+# 
 # Tests to run
-tests = [ Test8(), Test9(), Test10(),
+tests = [ Test1(), Test2(), Test3(), Test4(), Test5(), Test6(), Test7(),Test8(), Test9(), Test10(),
          ]
 
 ts = run_tests(tests)

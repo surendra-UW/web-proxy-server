@@ -8,7 +8,6 @@ int insert(int fd, int p, int delay, char *data);
 
 struct priority_queue *request_queue = NULL;
 void create_queue() {
-    printf("creating queue \n");
     struct priority_queue *queue = (struct priority_queue *)malloc(sizeof(struct priority_queue));
     pthread_mutex_init(&queue->mutex, NULL);
     pthread_cond_init(&queue->empty, NULL);
@@ -19,7 +18,6 @@ void create_queue() {
 
 int add_work(int fd, int priority, int delay, char *data) {
     if(request_queue == NULL) return -1;
-    printf("inserting queue priority %d delay %d fd %d data is %s\n", priority, delay, fd, data);
     return insert(fd, priority, delay, data);
 }
  
@@ -40,7 +38,7 @@ int rightChild(int i)
 }
  
 void swap(struct request *a, struct request* b) {
-    struct request temp = *a;
+    struct request temp = *b;
     *b = *a;
     *a = temp;
 }
@@ -99,7 +97,6 @@ int insert(int fd, int p, int delay, char *data)
     request_queue->buffer[request_queue->size].priority = p;
     request_queue->buffer[request_queue->size].delay = delay;
     request_queue->buffer[request_queue->size].data = data;
-    printf("inserted into queue fd is %d\n", request_queue->buffer[request_queue->size].fd);
     // Shift Up to maintain heap property
     shiftUp(request_queue->size);
     pthread_cond_signal(&request_queue->fill);
@@ -111,12 +108,10 @@ int insert(int fd, int p, int delay, char *data)
 // maximum priority
 struct request get_work()
 {
-    printf("extracting queue element %d\n", request_queue->size);
     pthread_mutex_lock(&request_queue->mutex);
     while(request_queue->size == -1)
         pthread_cond_wait(&request_queue->fill, &request_queue->mutex);
     struct request result = request_queue->buffer[0];
-    printf("extracted queue element %d\n", result.fd);
     // Replace the value at the root
     // with the last leaf
     request_queue->buffer[0] = request_queue->buffer[request_queue->size];
@@ -130,12 +125,6 @@ struct request get_work()
     return result;
 }
  
- void copy_request (struct request dest, struct request src) {
-    strncpy(dest.data , src.data, strlen(src.data)+1);
-    dest.delay = src.delay;
-    dest.fd = src.fd;
-    dest.priority = src.priority;
- }
 // maximum element
 char * get_max()
 {
@@ -147,12 +136,11 @@ char * get_max()
     }
     
 
-    char *data = (char *) malloc(strlen(request_queue->buffer[0].data));
-    // copy_request(*result, );
+    char *data = (char *) malloc(strlen(request_queue->buffer[0].data)+1);
     data = strndup(request_queue->buffer[0].data, strlen(request_queue->buffer[0].data)+1);
     // Replace the value at the root
     // with the last leaf
-    request_queue->buffer[0] = request_queue->buffer[request_queue->size];
+    swap(&request_queue->buffer[0], &request_queue->buffer[request_queue->size]);
     request_queue->size = request_queue->size - 1;
  
     // Shift down the replaced element

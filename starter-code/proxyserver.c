@@ -40,7 +40,7 @@ int num_workers;
 char *fileserver_ipaddr;
 int fileserver_port;
 int max_queue_size;
-struct ListenerThreadInfo* ListenerThreadInfoList; 
+struct ListenerThreadInfo* listenerThreadInfoList; 
 
 void send_error_response(int client_fd, status_code_t err_code, char *err_msg) {
     http_start_response(client_fd, err_code);
@@ -113,7 +113,6 @@ void* serve_request(void *arg) {
     close(client_fd);
     // Free resources and exit
     free(buffer);
-    // sleep(10);
     }
     return NULL;
 }
@@ -131,7 +130,6 @@ char *getPath(char *data) {
     return path;
 }
 
-int server_fd;
 /*
  * opens a TCP stream socket on all interfaces with port number PORTNO. Saves
  * the fd number of the server socket in *socket_number. For each accepted
@@ -255,7 +253,7 @@ void print_settings() {
 void signal_callback_handler(int signum) {
     printf("Caught signal %d: %s\n", signum, strsignal(signum));
     for (int i = 0; i < num_listener; i++) {
-        if (close(server_fd) < 0) perror("Failed to close server_fd (ignoring)\n");
+        if (close((listenerThreadInfoList+i)->server_fd) < 0) perror("Failed to close server_fd (ignoring)\n");
     }
     free(listener_ports);
     exit(0);
@@ -281,12 +279,12 @@ int main(int argc, char **argv) {
             num_listener = atoi(argv[++i]);
             free(listener_ports);
             listener_ports = (int *)malloc(num_listener * sizeof(int));
-            free(ListenerThreadInfoList);
-            ListenerThreadInfoList = (struct ListenerThreadInfo *)malloc(num_listener * sizeof(struct ListenerThreadInfo));
+            free(listenerThreadInfoList);
+            listenerThreadInfoList = (struct ListenerThreadInfo *)malloc(num_listener * sizeof(struct ListenerThreadInfo));
             for (int j = 0; j < num_listener; j++) {
                 listener_ports[j] = atoi(argv[++i]);
-                ListenerThreadInfoList[j].server_fd = -1;
-                ListenerThreadInfoList[j].port = listener_ports[j];
+                listenerThreadInfoList[j].server_fd = -1;
+                listenerThreadInfoList[j].port = listener_ports[j];
             }
         } else if (strcmp("-w", argv[i]) == 0) {
             num_workers = atoi(argv[++i]);
@@ -307,7 +305,7 @@ int main(int argc, char **argv) {
     // serve_forever(&server_fd);
     for (int i = 0; i < num_listener; ++i) {
         pthread_t thread;
-        if (pthread_create(&thread, NULL, serve_forever, &ListenerThreadInfoList[i]) != 0) {
+        if (pthread_create(&thread, NULL, serve_forever, &listenerThreadInfoList[i]) != 0) {
             perror("Error creating thread");
             return EXIT_FAILURE;
         }
