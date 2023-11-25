@@ -206,8 +206,6 @@ void *serve_forever(void *listener_thread_info_ptr)
                 http_send_header(client_fd, "Content-type", "text/html");
                  http_send_header(client_fd, "Server", "httpserver/1.0");
                 http_end_headers(client_fd);
-                // printf("sending data \n");
-                // char *test = "jhgsdfjhgsdjhfgjhsdf ";
                 http_send_string(client_fd, getPath(r));
             }
             close(client_fd);
